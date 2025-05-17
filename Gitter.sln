@@ -1,0 +1,43 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{C2E3629D-44C3-46C0-8BBD-4A379E69D4D9}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "test", "test", "{066170D5-843F-4470-BE7B-761110B23413}"
+EndProject
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Gitter.App", "src\app\Gitter.App.fsproj", "{35842DC2-A9F1-4497-B315-1CEAA28C54B0}"
+EndProject
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Gitter.Migrations", "src\migrations\Gitter.Migrations.fsproj", "{B7332CF6-2430-4F8D-9891-AA1CF41BF948}"
+EndProject
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Gitter.Test", "test\Gitter.Test.fsproj", "{289C92E6-9147-4368-B225-1713E36370FF}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{35842DC2-A9F1-4497-B315-1CEAA28C54B0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{35842DC2-A9F1-4497-B315-1CEAA28C54B0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{35842DC2-A9F1-4497-B315-1CEAA28C54B0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{35842DC2-A9F1-4497-B315-1CEAA28C54B0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B7332CF6-2430-4F8D-9891-AA1CF41BF948}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B7332CF6-2430-4F8D-9891-AA1CF41BF948}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B7332CF6-2430-4F8D-9891-AA1CF41BF948}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B7332CF6-2430-4F8D-9891-AA1CF41BF948}.Release|Any CPU.Build.0 = Release|Any CPU
+		{289C92E6-9147-4368-B225-1713E36370FF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{289C92E6-9147-4368-B225-1713E36370FF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{289C92E6-9147-4368-B225-1713E36370FF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{289C92E6-9147-4368-B225-1713E36370FF}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{35842DC2-A9F1-4497-B315-1CEAA28C54B0} = {C2E3629D-44C3-46C0-8BBD-4A379E69D4D9}
+		{B7332CF6-2430-4F8D-9891-AA1CF41BF948} = {C2E3629D-44C3-46C0-8BBD-4A379E69D4D9}
+		{289C92E6-9147-4368-B225-1713E36370FF} = {066170D5-843F-4470-BE7B-761110B23413}
+	EndGlobalSection
+EndGlobal

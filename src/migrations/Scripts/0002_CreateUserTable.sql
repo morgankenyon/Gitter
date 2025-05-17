@@ -1,0 +1,6 @@
+﻿CREATE TABLE dbo.users (
+	user_id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+	first_name TEXT NOT NULL,
+	last_name TEXT NOT NULL,
+	phone TEXT NOT NULL UNIQUE
+);
