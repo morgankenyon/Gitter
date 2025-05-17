@@ -54,11 +54,26 @@ module Models =
             Email: string
         }
 
+    [<CLIMutable>]
+    type SignInInfo =
+        {
+            HashedPassword: string
+            Salt: string
+        }
+
+    [<CLIMutable>]
+    type LoginRequest =
+        {
+            Email: string
+            Password: string
+        }
+
 module Logic =
     open Models
     let genericHashing (iterations: int) (keySize: int) (hashAlgorithm: HashAlgorithmName) (password: string) (salt: byte array)  =
         let hash = Rfc2898DeriveBytes.Pbkdf2(Encoding.UTF8.GetBytes(password), salt, iterations, hashAlgorithm, keySize)
         Convert.ToHexString hash
+
     let defaultHashing =
         genericHashing 350000 64 HashAlgorithmName.SHA512
 
@@ -154,6 +169,36 @@ module Data =
             return gitId
         }
 
+    let searchForUser (email: string) =
+        let sql =
+            """
+            SELECT
+                hashed_password,
+                salt
+            FROM dbo.Users
+            WHERE email = @email
+            """
+
+        task {
+            use conn = new NpgsqlConnection(connStr)
+            let dbParams =
+                {|
+                    email = email
+                |}
+            conn.Open()
+
+            let! signInInfos = conn.QueryAsync<SignInInfo>(sql, dbParams) //TODO - cancellationToken
+
+            return
+                if Seq.isEmpty signInInfos then
+                    None
+                else
+                    signInInfos
+                    |> Seq.head
+                    |> Some
+        }
+
+
 module Views =
     open Giraffe.ViewEngine
 
@@ -226,6 +271,24 @@ module Views =
             p [] [ encodedText "Check your email for confirmation" ]
         ] |> layout
 
+    let loginView () =
+        [
+            partial()
+            form [ _method "post" ] [
+                input [ _type "text"
+                        _name "email"
+                        _placeholder "Email"
+                        _autocomplete "email"
+                        _required ]
+                input [ _type "password"
+                        _name "password"
+                        _placeholder "Password"
+                        _required ]
+                input [ _type "submit"
+                        _value "Submit" ]
+            ]
+        ] |> layout
+
 module Handlers =
     open Data
     open Logic
@@ -262,6 +325,35 @@ module Handlers =
                 return! ctx.WriteStringAsync (sprintf "UserId: %d" userId)
             }
 
+    let loginHandler : HttpHandler =
+        Views.loginView()
+        |> htmlView
+
+    let loginRequestHandler : HttpHandler =
+        fun (next : HttpFunc) (ctx: HttpContext) ->
+            task {
+                let! loginRequest = ctx.BindFormAsync<LoginRequest>()
+
+                let! signInInfo = searchForUser loginRequest.Email
+
+                match signInInfo with
+                | Some sir ->
+                    let saltArray =
+                        sir.Salt
+                        |> Convert.FromHexString
+
+                    let rehashedPassword = defaultHashing loginRequest.Password saltArray
+
+                    if rehashedPassword = sir.HashedPassword then
+                        return! ctx.WriteStringAsync ("Login worked")
+                    else
+                        return! ctx.WriteStringAsync ("Login failed again")
+                    //return! (redirectTo false "/"  next ctx)
+                | None ->
+                    return! ctx.WriteStringAsync ("Login failed")
+
+            }
+
 
 module Api =
     open Handlers
@@ -271,13 +363,15 @@ module Api =
         choose [
             GET >=>
                 choose [
-                    route "/signup" >=> signUpHandler
                     route "/git/new" >=> addGitHandler
+                    route "/login" >=> loginHandler
+                    route "/signup" >=> signUpHandler
                 ]
             POST >=>
                 choose [
-                    route "/signup" >=> signedUpHandler
                     route "/git/new" >=> submitGitHandler
+                    route "/login" >=> loginRequestHandler
+                    route "/signup" >=> signedUpHandler
                     //route "/user" >=> insertUserHandler
                 ]
             setStatusCode 404 >=> text "Not Found" ]
