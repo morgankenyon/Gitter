@@ -13,12 +13,11 @@
     <Compile Include="Program.fs" />
   </ItemGroup>
   <ItemGroup>
-    <EmbeddedResource Include="Scripts\0001_CreateDboSchema.sql">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </EmbeddedResource>
-    <EmbeddedResource Include="Scripts\0002_CreateUserTable.sql">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </EmbeddedResource>
+    <None Include="Scripts\0001_CreateDboSchema.sql" />
+    <None Include="Scripts\0002_CreateUserTable.sql" />
+    <None Include="Scripts\0003_AddUserAccountColumns.sql" />
+    <None Include="Scripts\0004_RenamePasswordColumn.sql" />
+    <None Include="Scripts\0005_DropPhoneColumn.sql" />
   </ItemGroup>
 
 </Project>
