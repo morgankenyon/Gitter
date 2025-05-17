@@ -15,6 +15,20 @@ open System.Text
 
 module Models =
     [<CLIMutable>]
+    type NewGit =
+        {
+            GitText: string
+        }
+
+    [<CLIMutable>]
+    type Git =
+        {
+            GitId : int
+            CreatedAt : DateTime
+            GitText : string
+            UserId : int
+        }
+    [<CLIMutable>]
     type UnhashedNewUser =
         {
             FirstName : string
@@ -114,40 +128,92 @@ module Data =
             return userId
         }
 
+    let insertGit (newGit: NewGit) (userId: int) =
+        let sql =
+            """
+            INSERT INTO dbo.gits (
+                git_text,
+                user_id
+            ) VALUES (
+                @gitText,
+                @userId
+            ) RETURNING git_id;
+            """
+
+        task {
+            use conn = new NpgsqlConnection(connStr)
+            let dbParams =
+                {|
+                    gitText = newGit.GitText
+                    userId = userId
+                |}
+            conn.Open()
+
+            let! gitId = conn.ExecuteScalarAsync<int>(sql, dbParams) //TODO - cancellationToken
+
+            return gitId
+        }
+
 module Views =
     open Giraffe.ViewEngine
 
     let layout (content: XmlNode list) =
-        html [] [
+        html [ _lang "en" ] [
             head [] [
+                meta [ _charset "utf-8" ]
+                meta [ _name "viewport"]
+                meta [ _name "color-scheme" 
+                       _content "light" ]
                 title []  [ encodedText "Gitter" ]
                 link [ _rel  "stylesheet"
                        _type "text/css"
-                       _href "/main.css" ]
+                       _href "/pico.min.css" ]
             ]
-            body [] content
+            body [] [
+                main [ _class "container" ] content
+            ]
         ]
 
     let partial () =
         h1 [] [ encodedText "Gitter" ]
 
+    let addGitView () =
+        [
+            partial()
+            form [ _method "post" ] [
+                input [ _type "text"
+                        _name "gitText"
+                        _placeholder "Git Text"
+                        _required ]
+                input [ _type "submit"
+                        _value "Submit" ]                
+            ]
+        ] |> layout
+
     let signUpView () =
         [
             partial()
-            p [] [ encodedText "Hello there" ]
+            //p [] [ encodedText "Hello there" ]
             form [ _method "post"
                    _action "signup" ] [
                 input [ _type "text"
                         _name "firstName"
+                        _placeholder "First Name"
+                        _autocomplete "given-name"
                         _required ]
                 input [ _type "text"
                         _name "lastName"
+                        _placeholder "Last Name"
+                        _autocomplete "family-name"
                         _required ]
                 input [ _type "text"
                         _name "email"
+                        _placeholder "Email"
+                        _autocomplete "email"
                         _required ]
                 input [ _type "password"
                         _name "password"
+                        _placeholder "Password"
                         _required ]
                 input [ _type "submit"
                         _value "Submit" ]
@@ -164,24 +230,19 @@ module Handlers =
     open Data
     open Logic
     open Models
-    let getAllUsersHandler : HttpHandler =
+
+    let addGitHandler : HttpHandler =
+        Views.addGitView()
+        |> htmlView
+
+    let submitGitHandler : HttpHandler =
         fun (_ : HttpFunc) (ctx: HttpContext) ->
             task {
-                let! users = getAllUsers()
+                let! newGit = ctx.BindFormAsync<NewGit>()
 
-                return! ctx.WriteJsonAsync users
-            }
+                let! gitId = insertGit newGit 2
 
-    let insertUserHandler : HttpHandler =
-        fun (_ : HttpFunc) (ctx: HttpContext) ->
-            task {
-                //bind json
-                let! newUser = ctx.BindJsonAsync<UnhashedNewUser>()
-                let salt = generateDbSalt 64 //extract to some config
-                let hashedUser = hashUserRequest newUser salt
-                let! userId = insertUser hashedUser ""
-
-                return! ctx.WriteStringAsync (sprintf "UserId: %d" userId)
+                return! ctx.WriteStringAsync (sprintf "GitId: %d" gitId)
             }
 
     let signUpHandler : HttpHandler =
@@ -211,12 +272,13 @@ module Api =
             GET >=>
                 choose [
                     route "/signup" >=> signUpHandler
-                    route "/user" >=> getAllUsersHandler
+                    route "/git/new" >=> addGitHandler
                 ]
             POST >=>
                 choose [
                     route "/signup" >=> signedUpHandler
-                    route "/user" >=> insertUserHandler
+                    route "/git/new" >=> submitGitHandler
+                    //route "/user" >=> insertUserHandler
                 ]
             setStatusCode 404 >=> text "Not Found" ]
 
