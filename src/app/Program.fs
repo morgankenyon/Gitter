@@ -12,282 +12,12 @@ open System
 open System.IO
 open System.Security.Cryptography
 open System.Text
-
-module Models =
-    [<CLIMutable>]
-    type NewGit =
-        {
-            GitText: string
-        }
-
-    [<CLIMutable>]
-    type Git =
-        {
-            GitId : int
-            CreatedAt : DateTime
-            GitText : string
-            UserId : int
-        }
-    [<CLIMutable>]
-    type UnhashedNewUser =
-        {
-            FirstName : string
-            LastName : string
-            Email: string
-            Password: string
-        }
-
-    type HashedNewUser =
-        {
-            FirstName : string
-            LastName : string
-            Email: string
-            HashedPassword: string
-        }
-
-    [<CLIMutable>]
-    type User =
-        {
-            UserId : int32
-            FirstName : string
-            LastName : string
-            Email: string
-        }
-
-    [<CLIMutable>]
-    type SignInInfo =
-        {
-            HashedPassword: string
-            Salt: string
-        }
-
-    [<CLIMutable>]
-    type LoginRequest =
-        {
-            Email: string
-            Password: string
-        }
-
-module Logic =
-    open Models
-    let genericHashing (iterations: int) (keySize: int) (hashAlgorithm: HashAlgorithmName) (password: string) (salt: byte array)  =
-        let hash = Rfc2898DeriveBytes.Pbkdf2(Encoding.UTF8.GetBytes(password), salt, iterations, hashAlgorithm, keySize)
-        Convert.ToHexString hash
-
-    let defaultHashing =
-        genericHashing 350000 64 HashAlgorithmName.SHA512
-
-    let hashUserRequest (newUser: UnhashedNewUser) (salt: byte array) : HashedNewUser =
-        let hashedPassword = defaultHashing newUser.Password salt
-        {
-            FirstName = newUser.FirstName
-            LastName = newUser.LastName
-            Email = newUser.Email
-            HashedPassword = hashedPassword
-        }
-
-    let generateDbSalt (keySize : int) =
-        RandomNumberGenerator.GetBytes(keySize)
-
-module Data =
-    open Dapper
-    open Models
-    open Npgsql
-    open System.Data
-
-    let connStr = "Host=localhost;Username=postgres;Password=password123;Database=gitter"
-    let getAllUsers () =
-        let sql = "SELECT * FROM dbo.users"
-
-        task {
-            use conn = new NpgsqlConnection(connStr) :> IDbConnection
-            conn.Open()
-
-            let! dbUsers = conn.QueryAsync<User>(sql) //TODO - cancellationToken
-
-            return dbUsers
-        }
-
-    let insertUser (newUser: HashedNewUser) (salt: string) =
-        let sql = 
-            """
-            INSERT INTO dbo.users (
-                first_name,
-                last_name,
-                email,
-                hashed_password,
-                salt
-            ) VALUES (
-                @firstName,
-                @lastName,
-                @email,
-                @hashed_password,
-                @salt
-            ) RETURNING user_id;
-            """
-
-        task {
-            use conn = new NpgsqlConnection(connStr)
-            let dbParams =
-                {|
-                    firstName = newUser.FirstName
-                    lastName = newUser.LastName
-                    email = newUser.Email
-                    hashed_password = newUser.HashedPassword
-                    salt = salt
-                |}
-            conn.Open()
-
-            let! userId = conn.ExecuteScalarAsync<int>(sql, dbParams) //TODO - cancellationToken
-
-            return userId
-        }
-
-    let insertGit (newGit: NewGit) (userId: int) =
-        let sql =
-            """
-            INSERT INTO dbo.gits (
-                git_text,
-                user_id
-            ) VALUES (
-                @gitText,
-                @userId
-            ) RETURNING git_id;
-            """
-
-        task {
-            use conn = new NpgsqlConnection(connStr)
-            let dbParams =
-                {|
-                    gitText = newGit.GitText
-                    userId = userId
-                |}
-            conn.Open()
-
-            let! gitId = conn.ExecuteScalarAsync<int>(sql, dbParams) //TODO - cancellationToken
-
-            return gitId
-        }
-
-    let searchForUser (email: string) =
-        let sql =
-            """
-            SELECT
-                hashed_password,
-                salt
-            FROM dbo.Users
-            WHERE email = @email
-            """
-
-        task {
-            use conn = new NpgsqlConnection(connStr)
-            let dbParams =
-                {|
-                    email = email
-                |}
-            conn.Open()
-
-            let! signInInfos = conn.QueryAsync<SignInInfo>(sql, dbParams) //TODO - cancellationToken
-
-            return
-                if Seq.isEmpty signInInfos then
-                    None
-                else
-                    signInInfos
-                    |> Seq.head
-                    |> Some
-        }
+open Microsoft.AspNetCore.Authentication.Cookies
+open System.Security.Claims
+open Microsoft.AspNetCore.Authentication
+open Constants
 
 
-module Views =
-    open Giraffe.ViewEngine
-
-    let layout (content: XmlNode list) =
-        html [ _lang "en" ] [
-            head [] [
-                meta [ _charset "utf-8" ]
-                meta [ _name "viewport"]
-                meta [ _name "color-scheme" 
-                       _content "light" ]
-                title []  [ encodedText "Gitter" ]
-                link [ _rel  "stylesheet"
-                       _type "text/css"
-                       _href "/pico.min.css" ]
-            ]
-            body [] [
-                main [ _class "container" ] content
-            ]
-        ]
-
-    let partial () =
-        h1 [] [ encodedText "Gitter" ]
-
-    let addGitView () =
-        [
-            partial()
-            form [ _method "post" ] [
-                input [ _type "text"
-                        _name "gitText"
-                        _placeholder "Git Text"
-                        _required ]
-                input [ _type "submit"
-                        _value "Submit" ]                
-            ]
-        ] |> layout
-
-    let signUpView () =
-        [
-            partial()
-            //p [] [ encodedText "Hello there" ]
-            form [ _method "post"
-                   _action "signup" ] [
-                input [ _type "text"
-                        _name "firstName"
-                        _placeholder "First Name"
-                        _autocomplete "given-name"
-                        _required ]
-                input [ _type "text"
-                        _name "lastName"
-                        _placeholder "Last Name"
-                        _autocomplete "family-name"
-                        _required ]
-                input [ _type "text"
-                        _name "email"
-                        _placeholder "Email"
-                        _autocomplete "email"
-                        _required ]
-                input [ _type "password"
-                        _name "password"
-                        _placeholder "Password"
-                        _required ]
-                input [ _type "submit"
-                        _value "Submit" ]
-            ]
-        ] |> layout
-
-    let signedUpView () =
-        [
-            partial()
-            p [] [ encodedText "Check your email for confirmation" ]
-        ] |> layout
-
-    let loginView () =
-        [
-            partial()
-            form [ _method "post" ] [
-                input [ _type "text"
-                        _name "email"
-                        _placeholder "Email"
-                        _autocomplete "email"
-                        _required ]
-                input [ _type "password"
-                        _name "password"
-                        _placeholder "Password"
-                        _required ]
-                input [ _type "submit"
-                        _value "Submit" ]
-            ]
-        ] |> layout
 
 module Handlers =
     open Data
@@ -345,6 +75,18 @@ module Handlers =
                     let rehashedPassword = defaultHashing loginRequest.Password saltArray
 
                     if rehashedPassword = sir.HashedPassword then
+                        let mutable claims: Claim list = []
+                        claims <- new Claim(ClaimTypes.Name, loginRequest.Email) :: claims
+                        claims <- new Claim(ClaimTypes.Role, AdminRole) :: claims
+
+                        let claimsIdentity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme)
+
+                        let authProperties = new AuthenticationProperties()
+
+                        do! ctx.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme,
+                            new ClaimsPrincipal(claimsIdentity),
+                            authProperties)
+
                         return! ctx.WriteStringAsync ("Login worked")
                     else
                         return! ctx.WriteStringAsync ("Login failed again")
@@ -397,6 +139,11 @@ module Api =
            .AllowAnyHeader()
            |> ignore
 
+    let getCookiePolicyOptions () : CookiePolicyOptions =
+        let cookiePolicyOptions = new CookiePolicyOptions()
+        cookiePolicyOptions.MinimumSameSitePolicy <- SameSiteMode.Strict
+        cookiePolicyOptions
+
     let configureApp (app : IApplicationBuilder) =
         let env = app.ApplicationServices.GetService<IWebHostEnvironment>()
         (match env.IsDevelopment() with
@@ -407,11 +154,21 @@ module Api =
                 .UseHttpsRedirection())
             .UseCors(configureCors)
             .UseStaticFiles()
+            .UseCookiePolicy(getCookiePolicyOptions())
             .UseGiraffe(webApp)
+
+    //Cookie policy used from: https://learn.microsoft.com/en-us/aspnet/core/security/authentication/cookie?view=aspnetcore-6.0
+    //Does not work in server farm or load balancing
+    let cookieOptions(opts: CookieAuthenticationOptions) =
+        opts.ExpireTimeSpan <- TimeSpan.FromMinutes(20)
+        opts.SlidingExpiration <- true
+        opts.AccessDeniedPath <- "/Forbidden"
 
     let configureServices (services : IServiceCollection) =
         services.AddCors()    |> ignore
         services.AddGiraffe() |> ignore
+        services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+            .AddCookie(cookieOptions) |> ignore
 
     let configureLogging (builder : ILoggingBuilder) =
         builder.AddConsole()
