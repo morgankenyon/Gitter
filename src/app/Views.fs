@@ -98,3 +98,9 @@ let gitFeed (gits: Git seq) =
                 |> Seq.map (fun g -> li [] [ str g.GitText ])
         ]
     ] |> layout
+
+let secretView (msg: string) =
+    [
+        partial()
+        p [] [ encodedText msg ]
+    ] |> layout

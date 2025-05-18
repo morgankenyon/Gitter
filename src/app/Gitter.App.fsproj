@@ -13,8 +13,10 @@
     <PackageReference Include="Npgsql" Version="9.0.3" />
   </ItemGroup>
   <ItemGroup>
+    <Content Include="appsettings.json" />
     <Compile Include="Constants.fs" />
     <Compile Include="Models.fs" />
+    <Compile Include="Options.fs" />
     <Compile Include="Data.fs" />
     <Compile Include="Logic.fs" />
     <Compile Include="Views.fs" />

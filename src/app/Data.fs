@@ -3,22 +3,31 @@
 open Dapper
 open Models
 open Npgsql
+open Options
 open System.Data
+open System.Threading
 
-let connStr = "Host=localhost;Username=postgres;Password=password123;Database=gitter"
-let getAllUsers () =
-    let sql = "SELECT * FROM dbo.users"
+let private makeCommand (sql: string) (ct: CancellationToken) =
+    new CommandDefinition(sql, ?cancellationToken = Some(ct))
+let private makeParamCommand (sql: string) (dbParams: obj) (ct: CancellationToken) =
+    new CommandDefinition(sql, dbParams, ?cancellationToken = Some(ct))
+let private makeConnStr (dbOptions: DatabaseOptions) =
+    new NpgsqlConnection(dbOptions.ConnectionString) :> IDbConnection
 
-    task {
-        use conn = new NpgsqlConnection(connStr) :> IDbConnection
-        conn.Open()
+//let getAllUsers (dbOptions: DatabaseOptions) (ct: CancellationToken) =
+//    let sql = "SELECT * FROM dbo.users"
 
-        let! dbUsers = conn.QueryAsync<User>(sql) //TODO - cancellationToken
+//    task {
+//        use conn = makeConnStr dbOptions
+//        conn.Open()
 
-        return dbUsers
-    }
+//        let command = makeCommand sql ct
+//        let! dbUsers = conn.QueryAsync<User>(command)
 
-let insertUser (newUser: HashedNewUser) (salt: string) =
+//        return dbUsers
+//    }
+
+let insertUser (dbOptions: DatabaseOptions) (newUser: HashedNewUser) (salt: string) (ct: CancellationToken) =
     let sql = 
         """
         INSERT INTO dbo.users (
@@ -37,7 +46,7 @@ let insertUser (newUser: HashedNewUser) (salt: string) =
         """
 
     task {
-        use conn = new NpgsqlConnection(connStr)
+        use conn = makeConnStr dbOptions
         let dbParams =
             {|
                 firstName = newUser.FirstName
@@ -48,12 +57,13 @@ let insertUser (newUser: HashedNewUser) (salt: string) =
             |}
         conn.Open()
 
-        let! userId = conn.ExecuteScalarAsync<int>(sql, dbParams) //TODO - cancellationToken
+        let cmd = makeParamCommand sql dbParams ct
+        let! userId = conn.ExecuteScalarAsync<int>(cmd)
 
         return userId
     }
 
-let insertGit (newGit: NewGit) (userId: int) =
+let insertGit (dbOptions: DatabaseOptions) (newGit: NewGit) (userId: int) (ct: CancellationToken) =
     let sql =
         """
         INSERT INTO dbo.gits (
@@ -66,7 +76,7 @@ let insertGit (newGit: NewGit) (userId: int) =
         """
 
     task {
-        use conn = new NpgsqlConnection(connStr)
+        use conn = makeConnStr dbOptions
         let dbParams =
             {|
                 gitText = newGit.GitText
@@ -74,12 +84,13 @@ let insertGit (newGit: NewGit) (userId: int) =
             |}
         conn.Open()
 
-        let! gitId = conn.ExecuteScalarAsync<int>(sql, dbParams) //TODO - cancellationToken
+        let command = makeParamCommand sql dbParams ct
+        let! gitId = conn.ExecuteScalarAsync<int>(command)
 
         return gitId
     }
 
-let selectGits () =
+let selectGits (dbOptions: DatabaseOptions) (ct: CancellationToken) =
     let sql =
         """
         SELECT
@@ -88,15 +99,16 @@ let selectGits () =
         ORDER BY created_at DESC
         """
     task {
-        use conn = new NpgsqlConnection(connStr)
+        use conn = makeConnStr dbOptions
         conn.Open()
 
-        let! gits = conn.QueryAsync<Git>(sql) //TODO - cancellationToken
+        let command = makeCommand sql ct
+        let! gits = conn.QueryAsync<Git>(command)
 
         return gits
     }
 
-let searchForUser (email: string) =
+let searchForUser (dbOptions: DatabaseOptions) (email: string) (ct: CancellationToken) =
     let sql =
         """
         SELECT
@@ -107,14 +119,15 @@ let searchForUser (email: string) =
         """
 
     task {
-        use conn = new NpgsqlConnection(connStr)
+        use conn = makeConnStr dbOptions
         let dbParams =
             {|
                 email = email
             |}
         conn.Open()
 
-        let! signInInfos = conn.QueryAsync<SignInInfo>(sql, dbParams) //TODO - cancellationToken
+        let command = makeParamCommand sql dbParams ct
+        let! signInInfos = conn.QueryAsync<SignInInfo>(command)
 
         return
             if Seq.isEmpty signInInfos then
