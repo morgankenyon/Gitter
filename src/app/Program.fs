@@ -10,8 +10,6 @@ open Microsoft.Extensions.Logging
 open Microsoft.Extensions.DependencyInjection
 open System
 open System.IO
-open System.Security.Cryptography
-open System.Text
 open Microsoft.AspNetCore.Authentication.Cookies
 open System.Security.Claims
 open Microsoft.AspNetCore.Authentication
@@ -38,6 +36,14 @@ module Handlers =
                 return! ctx.WriteStringAsync (sprintf "GitId: %d" gitId)
             }
 
+    let viewGitsHandler : HttpHandler =
+        fun (_ : HttpFunc) (ctx: HttpContext) ->
+            task {
+                let! gits = selectGits()
+
+                return! ctx.WriteHtmlViewAsync (Views.gitFeed gits)
+            }
+
     let signUpHandler : HttpHandler =
         Views.signUpView()
         |> htmlView
@@ -60,7 +66,7 @@ module Handlers =
         |> htmlView
 
     let loginRequestHandler : HttpHandler =
-        fun (next : HttpFunc) (ctx: HttpContext) ->
+        fun (_ : HttpFunc) (ctx: HttpContext) ->
             task {
                 let! loginRequest = ctx.BindFormAsync<LoginRequest>()
 
@@ -105,6 +111,7 @@ module Api =
         choose [
             GET >=>
                 choose [
+                    route "/git" >=> viewGitsHandler
                     route "/git/new" >=> addGitHandler
                     route "/login" >=> loginHandler
                     route "/signup" >=> signUpHandler

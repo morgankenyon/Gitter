@@ -1,6 +1,7 @@
 ﻿module Gitter.Views
 
 open Giraffe.ViewEngine
+open Models
 
 let layout (content: XmlNode list) =
     html [ _lang "en" ] [
@@ -86,5 +87,14 @@ let loginView () =
                     _required ]
             input [ _type "submit"
                     _value "Submit" ]
+        ]
+    ] |> layout
+
+let gitFeed (gits: Git seq) =
+    [
+        ul [] [
+            yield!
+                gits
+                |> Seq.map (fun g -> li [] [ str g.GitText ])
         ]
     ] |> layout

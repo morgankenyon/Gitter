@@ -79,6 +79,23 @@ let insertGit (newGit: NewGit) (userId: int) =
         return gitId
     }
 
+let selectGits () =
+    let sql =
+        """
+        SELECT
+            *
+	    FROM dbo.gits
+        ORDER BY created_at DESC
+        """
+    task {
+        use conn = new NpgsqlConnection(connStr)
+        conn.Open()
+
+        let! gits = conn.QueryAsync<Git>(sql) //TODO - cancellationToken
+
+        return gits
+    }
+
 let searchForUser (email: string) =
     let sql =
         """
