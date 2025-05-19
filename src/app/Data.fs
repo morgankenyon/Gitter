@@ -27,7 +27,61 @@ let private makeConnStr (dbOptions: DatabaseOptions) =
 //        return dbUsers
 //    }
 
-let insertUser (dbOptions: DatabaseOptions) (newUser: HashedNewUser) (salt: string) (ct: CancellationToken) =
+let private noParamSelect<'T> (dbInfo: DbInfo) (sql: string) =
+    task {
+        try
+            use conn = makeConnStr dbInfo.DatabaseOptions
+            conn.Open()
+
+            let! result =
+                makeCommand sql dbInfo.Token
+                |> conn.QueryAsync<'T>
+
+            return Ok result;
+        with ex ->
+            return Error ex
+    }
+let private paramSelect<'T> (dbInfo: DbInfo) (sql: string) (dbParams: obj) =
+    task {
+        try
+            use conn = makeConnStr dbInfo.DatabaseOptions
+            conn.Open()
+
+            let! result =
+                makeParamCommand sql dbParams dbInfo.Token
+                |> conn.QueryAsync<'T>
+
+            return Ok result;
+        with ex ->
+            return Error ex
+    }
+
+let private insertSql (dbInfo: DbInfo) (sql: string) (dbParams: obj) =
+    task {
+        try
+
+            use conn = makeConnStr dbInfo.DatabaseOptions
+            conn.Open()
+
+            let command = makeParamCommand sql dbParams dbInfo.Token
+            let! insertedId = conn.ExecuteScalarAsync<int>(command)
+
+            return Ok insertedId
+        with ex ->
+            return Error ex
+    }
+
+let selectGits (dbInfo: DbInfo) =
+    let sql =
+        """
+        SELECT
+            *
+	    FROM dbo.gits
+        ORDER BY created_at DESC
+        """
+    noParamSelect<Git> dbInfo sql
+
+let insertUser (newUser: HashedNewUser) (salt: string) (dbInfo: DbInfo) =
     let sql = 
         """
         INSERT INTO dbo.users (
@@ -45,25 +99,18 @@ let insertUser (dbOptions: DatabaseOptions) (newUser: HashedNewUser) (salt: stri
         ) RETURNING user_id;
         """
 
-    task {
-        use conn = makeConnStr dbOptions
-        let dbParams =
-            {|
-                firstName = newUser.FirstName
-                lastName = newUser.LastName
-                email = newUser.Email
-                hashed_password = newUser.HashedPassword
-                salt = salt
-            |}
-        conn.Open()
+    let dbParams =
+        {|
+            firstName = newUser.FirstName
+            lastName = newUser.LastName
+            email = newUser.Email
+            hashed_password = newUser.HashedPassword
+            salt = salt
+        |}
+    insertSql dbInfo sql dbParams
 
-        let cmd = makeParamCommand sql dbParams ct
-        let! userId = conn.ExecuteScalarAsync<int>(cmd)
 
-        return userId
-    }
-
-let insertGit (dbOptions: DatabaseOptions) (newGit: NewGit) (userId: int) (ct: CancellationToken) =
+let insertGit (newGit: NewGit) (userId: int) (dbInfo: DbInfo) =
     let sql =
         """
         INSERT INTO dbo.gits (
@@ -74,41 +121,15 @@ let insertGit (dbOptions: DatabaseOptions) (newGit: NewGit) (userId: int) (ct: C
             @userId
         ) RETURNING git_id;
         """
+    let dbParams =
+        {|
+            gitText = newGit.GitText
+            userId = userId
+        |}
+    
+    insertSql dbInfo sql dbParams
 
-    task {
-        use conn = makeConnStr dbOptions
-        let dbParams =
-            {|
-                gitText = newGit.GitText
-                userId = userId
-            |}
-        conn.Open()
-
-        let command = makeParamCommand sql dbParams ct
-        let! gitId = conn.ExecuteScalarAsync<int>(command)
-
-        return gitId
-    }
-
-let selectGits (dbOptions: DatabaseOptions) (ct: CancellationToken) =
-    let sql =
-        """
-        SELECT
-            *
-	    FROM dbo.gits
-        ORDER BY created_at DESC
-        """
-    task {
-        use conn = makeConnStr dbOptions
-        conn.Open()
-
-        let command = makeCommand sql ct
-        let! gits = conn.QueryAsync<Git>(command)
-
-        return gits
-    }
-
-let searchForUser (dbOptions: DatabaseOptions) (email: string) (ct: CancellationToken) =
+let searchForUser (email: string) (dbInfo: DbInfo) =
     let sql =
         """
         SELECT
@@ -118,22 +139,9 @@ let searchForUser (dbOptions: DatabaseOptions) (email: string) (ct: Cancellation
         WHERE email = @email
         """
 
-    task {
-        use conn = makeConnStr dbOptions
-        let dbParams =
-            {|
-                email = email
-            |}
-        conn.Open()
-
-        let command = makeParamCommand sql dbParams ct
-        let! signInInfos = conn.QueryAsync<SignInInfo>(command)
-
-        return
-            if Seq.isEmpty signInInfos then
-                None
-            else
-                signInInfos
-                |> Seq.head
-                |> Some
-    }
+    let dbParams =
+        {|
+            email = email
+        |}
+    
+    paramSelect<SignInInfo> dbInfo sql dbParams

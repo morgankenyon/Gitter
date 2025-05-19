@@ -23,8 +23,16 @@ open Microsoft.Extensions.Options
 
 module Handlers =
     open Data
+    open Extensions
     open Logic
     open Models
+
+    let logErrorHandler (ctx: HttpContext) (loggerName: string) (exn: exn) =
+        task {
+            let logger = ctx.GetLogger("submitGitHandler")
+            logger.LogError(exn, "Error occurred when interacting with database")
+            return! ctx.WriteStringAsync "Error Occurred"
+        }
 
     let addGitHandler : HttpHandler =
         Views.addGitView()
@@ -34,21 +42,30 @@ module Handlers =
         fun (_ : HttpFunc) (ctx: HttpContext) ->
             task {
                 let! newGit = ctx.BindFormAsync<NewGit>()
-                
-                let dbOptions = ctx.GetService<IOptions<DatabaseOptions>>()
-                let! gitId = insertGit dbOptions.Value newGit 2 ctx.RequestAborted
 
-                return! ctx.WriteStringAsync (sprintf "GitId: %d" gitId)
+                let! gitIdResult = 
+                    ctx.BuildDbInfo()
+                    |> insertGit newGit 2
+
+                match gitIdResult with
+                | Ok gitId ->
+                    return! ctx.WriteStringAsync (sprintf "GitId: %d" gitId)
+                | Error exn ->
+                    return! logErrorHandler ctx "submitGitHandler" exn
             }
 
     let viewGitsHandler : HttpHandler =
         fun (_ : HttpFunc) (ctx: HttpContext) ->
             task {
-                let user = ctx.User
-                let dbOptions = ctx.GetService<IOptions<DatabaseOptions>>()
-                let! gits = selectGits dbOptions.Value ctx.RequestAborted
+                let! gitResult = 
+                    ctx.BuildDbInfo()
+                    |> selectGits
 
-                return! ctx.WriteHtmlViewAsync (Views.gitFeed gits)
+                match gitResult with
+                | Ok gits ->
+                    return! ctx.WriteHtmlViewAsync (Views.gitFeed gits)
+                | Error exn ->
+                    return! logErrorHandler ctx "viewGitsHandler" exn
             }
 
     let signUpHandler : HttpHandler =
@@ -63,9 +80,15 @@ module Handlers =
                 let salt = generateDbSalt 64 //extract to some config
                 let hashedUser = hashUserRequest newUser salt
                 let hexSalt = Convert.ToHexString(salt)
-                let! userId = insertUser dbOptions.Value hashedUser hexSalt ctx.RequestAborted
+                let! userIdResult = 
+                    ctx.BuildDbInfo()
+                    |> insertUser hashedUser hexSalt
 
-                return! ctx.WriteStringAsync (sprintf "UserId: %d" userId)
+                match userIdResult with
+                | Ok userId ->
+                    return! ctx.WriteStringAsync (sprintf "UserId: %d" userId)
+                | Error exn ->
+                    return! logErrorHandler ctx "signedUpHandler" exn
             }
 
     let loginHandler : HttpHandler =
@@ -75,28 +98,28 @@ module Handlers =
     let loginRequestHandler : HttpHandler =
         fun (next : HttpFunc) (ctx: HttpContext) ->
             task {
-                let dbOptions = ctx.GetService<IOptions<DatabaseOptions>>()
                 let! loginRequest = ctx.BindFormAsync<LoginRequest>()
-                let! signInInfo = searchForUser dbOptions.Value loginRequest.Email ctx.RequestAborted
+                let! signInResult = 
+                    ctx.BuildDbInfo()
+                    |> searchForUser loginRequest.Email
                 
-                match signInInfo with
-                | Some sir ->
+                match signInResult with
+                | Ok signInInfos when not (Seq.isEmpty(signInInfos)) ->
+                    let signInInfo = Seq.head signInInfos
                     let saltArray =
-                        sir.Salt
+                        signInInfo.Salt
                         |> Convert.FromHexString
 
                     let rehashedPassword = defaultHashing loginRequest.Password saltArray
 
-                    if rehashedPassword = sir.HashedPassword then
+                    if rehashedPassword = signInInfo.HashedPassword then
                         let mutable claims: Claim list = []
                         claims <- new Claim(ClaimTypes.Name, loginRequest.Email) :: claims
-                        claims <- new Claim(ClaimTypes.Role, AdminRole) :: claims
+                        claims <- new Claim(ClaimTypes.Role, AdminRole) :: claims //replace with actual roles
 
                         let claimsIdentity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme)
 
                         let authProperties = new AuthenticationProperties()
-                        
-
                         do! ctx.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme,
                             new ClaimsPrincipal(claimsIdentity),
                             authProperties)
@@ -105,8 +128,10 @@ module Handlers =
                         return! (redirectTo false "/git"  next ctx)
                     else
                         return! ctx.WriteStringAsync ("Login failed again")
-                | None ->
-                    return! ctx.WriteStringAsync ("Login failed")
+                | Ok _ ->
+                    return! ctx.WriteStringAsync ("Could not sign in")
+                | Error exn ->
+                    return! logErrorHandler ctx "loginRequestHandler" exn
             }
 
     let logoutHandler : HttpHandler =

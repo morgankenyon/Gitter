@@ -1,6 +1,8 @@
 ﻿module Gitter.Models
 
 open System
+open System.Threading
+open Options
 
 [<CLIMutable>]
 type NewGit =
@@ -55,4 +57,10 @@ type LoginRequest =
     {
         Email: string
         Password: string
+    }
+
+type DbInfo =
+    {
+        DatabaseOptions : DatabaseOptions
+        Token: CancellationToken
     }
