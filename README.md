@@ -10,6 +10,7 @@ A Twitter clone built on top of the Giraffe F# Framework
 * [DbUp](https://github.com/DbUp/DbUp) for database migrations
 * [Dapper](https://github.com/DapperLib/Dapper) to handle DB queries
 * [Giraffe.ViewEngine](https://github.com/giraffe-fsharp/Giraffe.ViewEngine) for UI
+* [PicoCSS](https://picocss.com/) for styling
 
 ## Architecture Overview
 

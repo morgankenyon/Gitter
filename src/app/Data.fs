@@ -9,23 +9,12 @@ open System.Threading
 
 let private makeCommand (sql: string) (ct: CancellationToken) =
     new CommandDefinition(sql, ?cancellationToken = Some(ct))
+
 let private makeParamCommand (sql: string) (dbParams: obj) (ct: CancellationToken) =
     new CommandDefinition(sql, dbParams, ?cancellationToken = Some(ct))
+
 let private makeConnStr (dbOptions: DatabaseOptions) =
     new NpgsqlConnection(dbOptions.ConnectionString) :> IDbConnection
-
-//let getAllUsers (dbOptions: DatabaseOptions) (ct: CancellationToken) =
-//    let sql = "SELECT * FROM dbo.users"
-
-//    task {
-//        use conn = makeConnStr dbOptions
-//        conn.Open()
-
-//        let command = makeCommand sql ct
-//        let! dbUsers = conn.QueryAsync<User>(command)
-
-//        return dbUsers
-//    }
 
 let private noParamSelect<'T> (dbInfo: DbInfo) (sql: string) =
     task {
@@ -37,10 +26,11 @@ let private noParamSelect<'T> (dbInfo: DbInfo) (sql: string) =
                 makeCommand sql dbInfo.Token
                 |> conn.QueryAsync<'T>
 
-            return Ok result;
-        with ex ->
-            return Error ex
+            return Ok result
+        with
+        | ex -> return Error ex
     }
+
 let private paramSelect<'T> (dbInfo: DbInfo) (sql: string) (dbParams: obj) =
     task {
         try
@@ -51,9 +41,9 @@ let private paramSelect<'T> (dbInfo: DbInfo) (sql: string) (dbParams: obj) =
                 makeParamCommand sql dbParams dbInfo.Token
                 |> conn.QueryAsync<'T>
 
-            return Ok result;
-        with ex ->
-            return Error ex
+            return Ok result
+        with
+        | ex -> return Error ex
     }
 
 let private insertSql (dbInfo: DbInfo) (sql: string) (dbParams: obj) =
@@ -67,8 +57,8 @@ let private insertSql (dbInfo: DbInfo) (sql: string) (dbParams: obj) =
             let! insertedId = conn.ExecuteScalarAsync<int>(command)
 
             return Ok insertedId
-        with ex ->
-            return Error ex
+        with
+        | ex -> return Error ex
     }
 
 let selectGits (dbInfo: DbInfo) =
@@ -79,10 +69,11 @@ let selectGits (dbInfo: DbInfo) =
 	    FROM dbo.gits
         ORDER BY created_at DESC
         """
+
     noParamSelect<Git> dbInfo sql
 
 let insertUser (newUser: HashedNewUser) (salt: string) (dbInfo: DbInfo) =
-    let sql = 
+    let sql =
         """
         INSERT INTO dbo.users (
             first_name,
@@ -100,13 +91,12 @@ let insertUser (newUser: HashedNewUser) (salt: string) (dbInfo: DbInfo) =
         """
 
     let dbParams =
-        {|
-            firstName = newUser.FirstName
-            lastName = newUser.LastName
-            email = newUser.Email
-            hashed_password = newUser.HashedPassword
-            salt = salt
-        |}
+        {| firstName = newUser.FirstName
+           lastName = newUser.LastName
+           email = newUser.Email
+           hashed_password = newUser.HashedPassword
+           salt = salt |}
+
     insertSql dbInfo sql dbParams
 
 
@@ -121,12 +111,11 @@ let insertGit (newGit: NewGit) (userId: int) (dbInfo: DbInfo) =
             @userId
         ) RETURNING git_id;
         """
+
     let dbParams =
-        {|
-            gitText = newGit.GitText
-            userId = userId
-        |}
-    
+        {| gitText = newGit.GitText
+           userId = userId |}
+
     insertSql dbInfo sql dbParams
 
 let searchForUser (email: string) (dbInfo: DbInfo) =
@@ -139,9 +128,6 @@ let searchForUser (email: string) (dbInfo: DbInfo) =
         WHERE email = @email
         """
 
-    let dbParams =
-        {|
-            email = email
-        |}
-    
+    let dbParams = {| email = email |}
+
     paramSelect<SignInInfo> dbInfo sql dbParams

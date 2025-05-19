@@ -13,7 +13,6 @@ type HttpContextExts =
     static member inline BuildDbInfo(hc: HttpContext) =
         let dbOptions = hc.GetService<IOptions<DatabaseOptions>>()
         let cToken = hc.RequestAborted
-        {
-            DatabaseOptions = dbOptions.Value
-            Token = cToken
-        }
+
+        { DatabaseOptions = dbOptions.Value
+          Token = cToken }
