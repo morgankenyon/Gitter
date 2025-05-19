@@ -1,0 +1,4 @@
+﻿CREATE TABLE dbo.roles (
+	role_id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+	role_name TEXT NOT NULL
+);

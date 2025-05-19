@@ -25,6 +25,11 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </EmbeddedResource>
     <EmbeddedResource Include="Scripts\0008_RenameTextColumnOnGitTable.sql">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Scripts\0009_CreateRoleTable.sql" />
+    <EmbeddedResource Include="Scripts\0010_CreateUserRolesTable.sql" />
+    <EmbeddedResource Include="Scripts\0011_SeedRoleTable.sql">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </EmbeddedResource>
   </ItemGroup>

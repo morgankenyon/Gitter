@@ -131,3 +131,43 @@ let searchForUser (email: string) (dbInfo: DbInfo) =
     let dbParams = {| email = email |}
 
     paramSelect<SignInInfo> dbInfo sql dbParams
+
+let getUserAndRoles (email: string) (dbInfo: DbInfo) =
+    let sql =
+        """
+        SELECT
+	        u.user_id
+	        ,u.first_name
+	        ,u.last_name
+	        ,r.role_id
+	        ,r.role_name
+        FROM dbo.users u
+        INNER JOIN dbo.user_roles ur
+	        ON ur.user_id = u.user_id
+        INNER JOIN dbo.roles r
+	        ON r.role_id = ur.role_id
+        WHERE email = @email
+        """
+    let userDict = new System.Collections.Generic.Dictionary<int, User>();
+    let roles = new System.Collections.Generic.List<Role>();
+    task {
+        try
+            use conn = makeConnStr dbInfo.DatabaseOptions
+            conn.Open()
+
+            let command = makeCommand sql dbInfo.Token
+            let! result = conn.QueryAsync<User, Role, User>(
+                command,
+                fun (u: User, r: Role) ->
+                    let currentUser =
+                        if userDict.ContainsKey u.UserId then
+                            userDict[u.UserId]
+                        else
+                            userDict.Add(u.UserId, u)
+                            u
+                    roles.Add(r)
+            //TODO: fix this
+            return Ok result
+        with
+        | ex -> return Error ex
+    }

@@ -45,3 +45,8 @@ type LoginRequest = { Email: string; Password: string }
 type DbInfo =
     { DatabaseOptions: DatabaseOptions
       Token: CancellationToken }
+
+[<CLIMutable>]
+type Role =
+    { RoleId: int32
+      RoleName: string }
